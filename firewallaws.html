@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Request Flow</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Fira+Code:wght@500&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #0f172a; /* Slate 900 */
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #canvas {
+            position: relative;
+            width: 1000px;
+            height: 600px;
+            background-color: #1e293b; /* Slate 800 */
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255,255,255,0.05);
+            overflow: hidden;
+            transform-origin: center center;
+        }
+
+        #canvas::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+            pointer-events: none;
+        }
+
+        /* Common Utility Classes */
+        .hidden { opacity: 0; pointer-events: none; }
+        .fade-in { opacity: 1 !important; transition: opacity 0.5s ease; }
+        
+        @keyframes pulseGlowBlue {
+            0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.7); }
+            70% { box-shadow: 0 0 20px 15px rgba(56, 189, 248, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+        }
+
+        @keyframes pulseGlowGreen {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 20px 15px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
+        }
+
+        .browser {
+            position: absolute;
+            left: 40px;
+            top: 220px;
+            width: 200px;
+            height: 140px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+        
+        .browser-header {
+            height: 24px;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            gap: 6px;
+        }
+        
+        .browser-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .dot-r { background: #ef4444; }
+        .dot-y { background: #eab308; }
+        .dot-g { background: #22c594; }
+        
+        .browser-body {
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+        
+        .browser-typing {
+            font-family: 'Fira Code', monospace;
+            color: #38bdf8;
+            font-size: 13px;
+        }
+
+        .ip-tooltip {
+            position: absolute;
+            bottom: -35px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #334155;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            color: #a7f3d0;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .web-content-block {
+            width: 90%;
+            background: #334155;
+            border-radius: 4px;
+            margin: 4px 0;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.5s ease;
+        }
+
+        .dns-container {
+            position: absolute;
+            left: 120px;
+            top: 40px;
+            width: 140px;
+            height: 80px;
+            z-index: 10;
+        }
+        
+        .cloud {
+            position: relative;
+            width: 80px;
+            height: 30px;
+            background: #475569;
+            border-radius: 40px;
+            margin: 20px auto 0;
+            transition: background 0.5s ease;
+        }
+        .cloud::before, .cloud::after {
+            content: '';
+            position: absolute;
+            background: #475569;
+            border-radius: 50%;
+            transition: background 0.5s ease;
+        }
+        .cloud::before { width: 40px; height: 40px; top: -20px; left: 10px; }
+        .cloud::after { width: 30px; height: 30px; top: -10px; right: 10px; }
+        
+        .dns-glow .cloud, .dns-glow .cloud::before, .dns-glow .cloud::after {
+            background: #0284c7;
+            box-shadow: 0 0 15px rgba(14, 165, 233, 0.5);
+        }
+
+        .dns-label {
+            position: absolute;
+            top: 0; width: 100%; text-align: center;
+            font-weight: 800; color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            z-index: 2;
+        }
+
+        .dns-response {
+            position: absolute;
+            top: 60px;
+            left: -20px;
+            width: 180px;
+            text-align: center;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            color: #38bdf8;
+            opacity: 0;
+        }
+
+        .firewall-container {
+            position: absolute;
+            left: 350px;
+            top: 150px;
+            width: 60px;
+            height: 260px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            z-index: 20;
+        }
+
+        .wall-part {
+            width: 20px;
+            height: 120px;
+            background: linear-gradient(180deg, #f97316, #ef4444);
+            border-radius: 4px;
+            margin: 2px auto;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+            transition: transform 1s ease-in-out, opacity 0.5s;
+        }
+
+        .firewall-label {
+            position: absolute;
+            top: -25px;
+            width: 140px;
+            left: -40px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #fca5a5;
+        }
+
+        .firewall-check {
+            position: absolute;
+            top: 110px;
+            left: -50px;
+            width: 160px;
+            text-align: center;
+            background: #064e3b;
+            color: #34d399;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            opacity: 0;
+            border: 1px solid #059669;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 30;
+        }
+
+        .ec2-box {
+            position: absolute;
+            left: 310px;
+            top: 110px;
+            width: 660px;
+            height: 440px;
+            border: 2px dashed #64748b;
+            border-radius: 16px;
+            background: rgba(30, 41, 59, 0.3);
+            opacity: 0;
+            transition: opacity 1.5s ease;
+            z-index: 1;
+        }
+        
+        .ec2-label {
+            position: absolute;
+            top: 15px; left: 20px;
+            font-size: 16px; font-weight: 800;
+            color: #94a3b8; letter-spacing: 1px;
+        }
+
+        .node {
+            position: absolute;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-weight: 600;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+
+        .nginx-box {
+            left: 520px; top: 230px;
+            width: 120px; height: 100px;
+            background: #0284c7; /* Sky 600 */
+            border: 2px solid #38bdf8;
+            opacity: 0;
+        }
+
+        .nginx-status {
+            position: absolute;
+            bottom: -45px;
+            width: 240px;
+            text-align: center;
+            color: #7dd3fc;
+            font-size: 13px;
+            font-style: italic;
+            opacity: 0;
+        }
+
+        .static-box {
+            left: 780px; top: 230px;
+            width: 160px; height: 100px;
+            background: transparent;
+            opacity: 0;
+        }
+
+        .folder-icon {
+            width: 70px; height: 50px;
+            background: #fbbf24;
+            border-radius: 4px;
+            position: relative;
+            margin: 0 auto;
+            box-shadow: 0 8px 10px rgba(0,0,0,0.2);
+        }
+        .folder-icon::before {
+            content: ''; position: absolute;
+            top: -10px; left: 0;
+            width: 30px; height: 10px;
+            background: #fbbf24;
+            border-radius: 4px 4px 0 0;
+        }
+        
+        .static-label {
+            margin-top: 10px;
+            text-align: center;
+            color: #fcd34d;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .backend-box {
+            left: 510px; top: 430px;
+            width: 140px; height: 90px;
+            background: #166534; /* Green 800 */
+            border: 2px solid #4ade80;
+            opacity: 0;
+        }
+
+        .node-desc {
+            font-size: 12px; color: rgba(255,255,255,0.7); margin-top: 4px; font-weight: 400;
+        }
+
+        .packet-wrapper {
+            position: absolute;
+            left: 140px;
+            top: 280px; /* Center of Browser */
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            opacity: 0;
+            transition: left 2s linear, top 2s linear, opacity 0.3s;
+        }
+
+        .packet {
+            width: 16px; height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 15px 5px #38bdf8;
+        }
+
+        .packet-label {
+            position: absolute;
+            bottom: 25px;
+            left: -70px;
+            width: 160px;
+            text-align: center;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid #38bdf8;
+            color: #38bdf8;
+            padding: 4px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        svg.lines-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 1000px; height: 600px;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .path-line {
+            fill: none;
+            stroke: #475569;
+            stroke-width: 2;
+            stroke-dasharray: 6 6;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        .path-arrow-text {
+            position: absolute;
+            font-size: 12px;
+            color: #cbd5e1;
+            opacity: 0;
+            z-index: 15;
+            background: #0f172a;
+            padding: 4px 8px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .highlight-path {
+            fill: none;
+            stroke: #38bdf8;
+            stroke-width: 3;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            filter: drop-shadow(0 0 6px #38bdf8);
+            stroke-dasharray: 1500;
+            stroke-dashoffset: 1500;
+        }
+
+        .draw-highlight {
+            animation: drawLineAnim 4s linear forwards;
+        }
+
+        @keyframes drawLineAnim {
+            to { stroke-dashoffset: 0; }
+        }
+
+        .final-text {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 800;
+            color: #fff;
+            text-shadow: 0 0 15px rgba(56, 189, 248, 0.8);
+            opacity: 0;
+            z-index: 100;
+            transition: opacity 1.5s ease;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas">
+        
+        <!-- SVG Layer for connection lines -->
+        <svg class="lines-layer" xmlns="http://www.w3.org/2000/svg">
+            <!-- Scene 2: Browser to DNS -->
+            <path id="line-dns" class="path-line" d="M 140 220 L 190 120" />
+            
+            <!-- Scene 6: Nginx to Static (Right) -->
+            <path id="line-static" class="path-line" d="M 640 280 L 770 280" />
+            
+            <!-- Scene 6: Nginx to Backend (Down) -->
+            <path id="line-backend" class="path-line" d="M 580 330 L 580 420" />
+
+            <!-- Scene 8: Final Trace Path (Browser -> Firewall -> Nginx -> Both paths) -->
+            <path id="highlight-trace-1" class="highlight-path" d="M 140 280 L 360 280 L 520 280 L 640 280 L 770 280" />
+            <path id="highlight-trace-2" class="highlight-path" d="M 580 280 L 580 420" />
+        </svg>
+
+        <!-- Scene 6: Path Labels -->
+        <div id="label-static" class="path-arrow-text" style="left: 660px; top: 250px;">Normal page visit</div>
+        <div id="label-backend" class="path-arrow-text" style="left: 595px; top: 360px;">API call → proxy_pass</div>
+
+        <!-- Scene 8: Background EC2 Box -->
+        <div id="ec2" class="ec2-box">
+            <div class="ec2-label">EC2 Instance</div>
+        </div>
+
+        <!-- Component: Browser -->
+        <div id="browser" class="browser">
+            <div class="browser-header">
+                <div class="browser-dot dot-r"></div>
+                <div class="browser-dot dot-y"></div>
+                <div class="browser-dot dot-g"></div>
+            </div>
+            <div class="browser-body" id="browser-body">
+                <div class="browser-typing" id="browser-text"></div>
+            </div>
+            <div class="ip-tooltip" id="ip-tooltip">1.2.44.4</div>
+        </div>
+
+        <!-- Component: DNS -->
+        <div id="dns" class="dns-container hidden">
+            <div class="dns-label">DNS</div>
+            <div class="cloud" id="dns-cloud"></div>
+            <div class="dns-response" id="dns-resp-text">abc.com → 1.2.44.4</div>
+        </div>
+
+        <!-- Component: Firewall -->
+        <div id="firewall" class="firewall-container hidden">
+            <div class="firewall-label">Security Group</div>
+            <div class="wall-part" id="gate-top"></div>
+            <div class="wall-part" id="gate-bottom"></div>
+            <div class="firewall-check" id="firewall-check">Port 80 ✅ Allowed</div>
+        </div>
+
+        <!-- Component: Nginx -->
+        <div id="nginx" class="node nginx-box">
+            <div style="font-size: 18px;">Nginx</div>
+            <div class="node-desc">:80</div>
+            <div class="nginx-status" id="nginx-status">Nginx is listening... request received!</div>
+        </div>
+
+        <!-- Component: Static Files -->
+        <div id="static-files" class="node static-box">
+            <div class="folder-icon"></div>
+            <div class="static-label">Static Files (HTML/CSS/JS)</div>
+        </div>
+
+        <!-- Component: Backend -->
+        <div id="backend" class="node backend-box">
+            <div style="font-size: 16px;">Backend</div>
+            <div class="node-desc">:3000</div>
+        </div>
+
+        <!-- Moving Packet -->
+        <div id="packet" class="packet-wrapper">
+            <div class="packet-label" id="packet-label">HTTP Request → Port 80</div>
+            <div class="packet"></div>
+        </div>
+
+        <!-- Component: Final Text -->
+        <div id="final-text" class="final-text">This is how your website works.</div>
+
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        
+        // Ensure the 1000x600 canvas perfectly scales into any viewport
+        function resize() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            // 0.95 adds a tiny bit of margin padding
+            const scale = Math.min(w / 1000, h / 600) * 0.95;
+            canvas.style.transform = `scale(${scale})`;
+        }
+        window.addEventListener('resize', resize);
+        resize(); // Initial fit
+
+        const el = (id) => document.getElementById(id);
+
+        /* 
+         * TIMELINE FUNCTIONS 
+         * Using sequential setTimeout calls to ensure safe and strict playback.
+         */
+
+        // Scene 1 (0s): Browser appears, user types.
+        function scene1() {
+            el('browser').classList.add('fade-in');
+            const textToType = "User types: abc.com";
+            const textBox = el('browser-text');
+            let i = 0;
+            const interval = setInterval(() => {
+                textBox.textContent += textToType.charAt(i);
+                i++;
+                if (i >= textToType.length) clearInterval(interval);
+            }, 50); // Fast typing
+        }
+
+        // Scene 2 (2s): DNS Lookup
+        function scene2() {
+            el('dns').classList.remove('hidden');
+            el('dns').classList.add('fade-in');
+            el('line-dns').style.opacity = '1';
+            
+            setTimeout(() => {
+                el('dns-cloud').parentElement.classList.add('dns-glow');
+                setTimeout(() => {
+                    el('dns-resp-text').classList.add('fade-in');
+                    el('ip-tooltip').classList.add('fade-in');
+                }, 500);
+            }, 500);
+        }
+
+        // Scene 3 (4s): Request Travels to Firewall
+        function scene3() {
+            el('firewall').classList.remove('hidden');
+            el('firewall').classList.add('fade-in');
+            
+            const packet = el('packet');
+            packet.style.opacity = '1';
+            packet.style.left = '140px'; 
+            packet.style.top = '280px'; 
+
+            // Trigger CSS transition
+            setTimeout(() => {
+                packet.style.left = '330px'; // Moves just before the firewall
+            }, 100);
+        }
+
+        // Scene 4 (6s): Hits Firewall
+        function scene4() {
+            const fw = el('firewall');
+            fw.style.animation = 'shake 0.5s ease-in-out';
+            
+            setTimeout(() => {
+                el('firewall-check').classList.add('fade-in');
+                setTimeout(() => {
+                    // Open Gates smoothly
+                    el('gate-top').style.transform = 'translateY(-70px)';
+                    el('gate-bottom').style.transform = 'translateY(70px)';
+                    
+                    // Packet moves through to Nginx
+                    setTimeout(() => {
+                        el('packet').style.left = '510px'; // Edge of Nginx
+                    }, 400);
+                }, 800);
+            }, 500);
+        }
+
+        // Scene 5 (9s): Nginx Receives
+        function scene5() {
+            el('nginx').classList.add('fade-in');
+            el('nginx').style.animation = 'pulseGlowBlue 2s infinite';
+            
+            setTimeout(() => {
+                el('nginx-status').classList.add('fade-in');
+            }, 500);
+        }
+
+        // Scene 6 (11s): Two Paths from Nginx (Right to Static, Down to Backend)
+        function scene6() {
+            el('static-files').classList.add('fade-in');
+            el('backend').classList.add('fade-in');
+            
+            // Path 1 (Right to Static)
+            el('line-static').style.opacity = '1';
+            setTimeout(() => {
+                el('label-static').classList.add('fade-in');
+                el('static-files').querySelector('.folder-icon').style.boxShadow = '0 0 25px #fcd34d';
+            }, 600);
+            
+            // Path 2 (Down to Backend)
+            setTimeout(() => {
+                el('line-backend').style.opacity = '1';
+                setTimeout(() => {
+                    el('label-backend').classList.add('fade-in');
+                    el('backend').style.animation = 'pulseGlowGreen 2s infinite';
+                }, 600);
+            }, 1200);
+        }
+
+        // Scene 7 (15s): Response Comes Back
+        function scene7() {
+            const packet = el('packet');
+            const label = el('packet-label');
+            
+            label.textContent = "HTTP 200 OK (Response)";
+            label.style.color = '#4ade80';
+            label.style.borderColor = '#4ade80';
+            packet.querySelector('.packet').style.boxShadow = '0 0 15px 5px #4ade80';
+            
+            // Re-use same packet and move it back horizontally
+            packet.style.transition = 'left 1.5s ease-in-out';
+            packet.style.left = '140px'; // Back to Browser edge
+            
+            setTimeout(() => {
+                packet.style.opacity = '0'; // Hide it when it reaches browser
+                
+                // Update Browser Content
+                const body = el('browser-body');
+                body.innerHTML = ''; // Clear typed text
+                
+                // Add simulated webpage content lines
+                for(let i=0; i<3; i++) {
+                    let block = document.createElement('div');
+                    block.className = 'web-content-block';
+                    block.style.height = i === 0 ? '40px' : '20px';
+                    body.appendChild(block);
+                    
+                    setTimeout(() => {
+                        block.classList.add('fade-in');
+                        block.style.transform = 'translateY(0)';
+                    }, i * 200);
+                }
+            }, 1600);
+        }
+
+        // Scene 8 (18s): Full Picture Highlight
+        function scene8() {
+            el('ec2').classList.add('fade-in');
+            
+            setTimeout(() => {
+                el('highlight-trace-1').classList.add('draw-highlight');
+                el('highlight-trace-2').classList.add('draw-highlight');
+                
+                setTimeout(() => {
+                    el('final-text').classList.add('fade-in');
+                }, 1500);
+            }, 800);
+        }
+
+        // Master Timeline
+        function startAnimation() {
+            setTimeout(scene1, 0);       // 0s
+            setTimeout(scene2, 2000);    // 2s
+            setTimeout(scene3, 4000);    // 4s
+            setTimeout(scene4, 6000);    // 6s
+            setTimeout(scene5, 9000);    // 9s
+            setTimeout(scene6, 11000);   // 11s
+            setTimeout(scene7, 15000);   // 15s
+            setTimeout(scene8, 18000);   // 18s
+        }
+
+        // Start safely after layout mounts
+        window.onload = () => {
+            setTimeout(startAnimation, 500);
+        };
+    </script>
+</body>
+</html>
