@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web App Deployment Flow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Tailwind slate-900 */
+            color: #f8fafc;
+        }
+
+        .font-mono {
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Smooth transitions for all standard nodes */
+        .anim-node {
+            transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Specific fast spin for the build gear */
+        .animate-spin-fast {
+            animation: spin 1s linear infinite;
+        }
+
+        /* Keyframes for the final Nginx glowing pulse */
+        @keyframes glow-pulse {
+            0%, 100% { 
+                box-shadow: 0 0 15px rgba(34, 197, 94, 0.2); 
+                border-color: rgba(71, 85, 105, 1); /* slate-600 */
+            }
+            50% { 
+                box-shadow: 0 0 35px rgba(34, 197, 94, 0.6); 
+                border-color: rgba(34, 197, 94, 0.8);
+            }
+        }
+        .animate-glow-pulse {
+            animation: glow-pulse 3s infinite;
+        }
+
+        /* Network packet transitions */
+        .packet {
+            transition: left 1s ease-in-out, opacity 0.3s ease-in-out;
+        }
+
+        /* Wrapper for Dist folder to allow sliding left-to-right */
+        #wrapper-dist {
+            transition: left 1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="max-w-6xl w-full flex flex-col items-center gap-8">
+        
+        <div class="text-center space-y-4 max-w-2xl">
+            <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">
+                How a Website is Served
+            </h1>
+            <p class="text-slate-400 text-sm">
+                Watch the journey of your code from a local folder, through the build process, into an Nginx server, and finally to the user's browser.
+            </p>
+            <button id="play-btn" onclick="playAnimation()" class="mt-4 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg shadow-lg shadow-blue-500/30 transition-all active:scale-95 flex items-center justify-center gap-2 mx-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                Play Animation
+            </button>
+        </div>
+
+        <!-- Responsive wrapper to handle horizontal scrolling on small screens -->
+        <div class="w-full overflow-x-auto pb-8">
+            <div class="relative w-full min-w-[900px] h-[500px] bg-slate-800/50 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-sm">
+                
+                <!-- Act Title Display -->
+                <div class="absolute top-8 left-0 w-full text-center z-30">
+                    <h2 id="act-title" class="text-2xl font-semibold text-emerald-300 opacity-0 transition-opacity duration-500 tracking-wide">
+                        Act 1: The Code
+                    </h2>
+                </div>
+
+                <!-- Act 1: The Code (12% position) -->
+                <div class="absolute top-1/2 left-[12%] -translate-x-1/2 -translate-y-1/2 z-10">
+                    <div id="node-code" class="anim-node opacity-0 translate-y-8 flex flex-col items-center">
+                        <div class="relative w-20 h-16 bg-blue-600 rounded-t-sm rounded-b-lg before:absolute before:w-1/2 before:h-3 before:-top-3 before:bg-blue-700 before:rounded-t-md shadow-lg shadow-blue-900/50">
+                            <!-- Glowing files sticking out -->
+                            <div class="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col gap-1.5 w-28 pointer-events-none">
+                                <div class="bg-slate-900 border border-cyan-400/80 text-cyan-200 text-[10px] font-mono px-2 py-0.5 rounded shadow-[0_0_12px_rgba(34,211,238,0.6)] flex items-center gap-1">
+                                    <span class="text-cyan-400">⚛</span> App.jsx
+                                </div>
+                                <div class="bg-slate-900 border border-pink-400/80 text-pink-200 text-[10px] font-mono px-2 py-0.5 rounded shadow-[0_0_12px_rgba(244,114,182,0.6)] flex items-center gap-1">
+                                    <span class="text-pink-400">#</span> style.css
+                                </div>
+                                <div class="bg-slate-900 border border-yellow-400/80 text-yellow-200 text-[10px] font-mono px-2 py-0.5 rounded shadow-[0_0_12px_rgba(250,204,21,0.6)] flex items-center gap-1">
+                                    <span class="text-yellow-400">JS</span> main.js
+                                </div>
+                            </div>
+                        </div>
+                        <span class="mt-5 font-mono text-sm text-blue-300 font-medium">Your Code</span>
+                    </div>
+                </div>
+
+                <!-- Connection: Code -> Gear -->
+                <div id="arrow-1" class="absolute top-1/2 -translate-y-1/2 h-0 border-t-2 border-dashed border-slate-500 opacity-0 transition-opacity duration-700" style="left: 19%; width: 6%;">
+                    <div class="absolute -right-1 -top-[5px] border-t-2 border-r-2 border-slate-500 w-2 h-2 rotate-45"></div>
+                </div>
+
+                <!-- Act 2: Build Gear (30% position) -->
+                <div class="absolute top-1/2 left-[30%] -translate-x-1/2 -translate-y-1/2 z-10">
+                    <div id="node-gear" class="anim-node opacity-0 scale-50 flex flex-col items-center">
+                        <svg id="gear-svg" xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400">
+                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="4"/>
+                        </svg>
+                        <span class="mt-3 font-mono text-xs text-slate-400 bg-slate-900 px-2 py-1 rounded border border-slate-700">npm run build</span>
+                    </div>
+                </div>
+
+                <!-- Act 2.5: Dist Folder (Starts at 45%, moves to 65%) -->
+                <div id="wrapper-dist" class="absolute top-1/2 left-[45%] -translate-x-1/2 -translate-y-1/2 z-20">
+                    <div id="node-dist" class="anim-node opacity-0 flex flex-col items-center">
+                        <div class="relative w-14 h-10 bg-slate-600 rounded-t-sm rounded-b-md before:absolute before:w-1/2 before:h-2 before:-top-2 before:bg-slate-700 before:rounded-t-sm shadow-md">
+                            <!-- Minified files inside -->
+                            <div class="absolute -top-3 left-1/2 -translate-x-1/2 flex gap-1">
+                                <div class="w-3 h-4 bg-slate-400 rounded-[2px] border border-slate-300"></div>
+                                <div class="w-3 h-4 bg-slate-400 rounded-[2px] border border-slate-300"></div>
+                            </div>
+                        </div>
+                        <span class="mt-3 font-mono text-[10px] text-emerald-400 whitespace-nowrap bg-emerald-900/30 px-1.5 py-0.5 rounded">optimized & minified</span>
+                        <span class="font-mono text-sm text-slate-300 mt-1">dist/</span>
+                    </div>
+                </div>
+
+                <!-- Act 3: Nginx Server (65% position) -->
+                <div class="absolute top-1/2 left-[65%] -translate-x-1/2 -translate-y-1/2 z-10">
+                    <div id="node-nginx" class="anim-node opacity-0 translate-y-8 flex flex-col items-center w-28">
+                        <div id="nginx-box" class="w-24 h-36 bg-slate-800 border-2 border-slate-600 rounded-lg shadow-2xl flex flex-col justify-end p-2 pb-4 relative transition-all duration-700">
+                            <!-- Rack Details -->
+                            <div class="w-full h-1.5 bg-slate-900 rounded mb-2 opacity-50"></div>
+                            <div class="w-full h-1.5 bg-slate-900 rounded mb-2 opacity-50"></div>
+                            <div class="w-full h-1.5 bg-slate-900 rounded mb-4 opacity-50"></div>
+                            
+                            <!-- Status Panel -->
+                            <div class="flex items-center gap-2 mt-auto bg-slate-900/50 p-1 rounded">
+                                <div id="nginx-led" class="w-2.5 h-2.5 rounded-full bg-slate-600 shadow-inner transition-colors duration-500"></div>
+                                <span class="text-[9px] font-mono text-slate-400 tracking-wider">NGINX</span>
+                            </div>
+                        </div>
+                        <span id="nginx-label" class="mt-4 font-mono text-sm font-semibold text-emerald-400">Nginx</span>
+                        <span id="nginx-port" class="font-mono text-[10px] text-slate-400 opacity-0 transition-opacity duration-500 mt-1">port 80 / 443</span>
+                    </div>
+                </div>
+
+                <!-- Connection: Nginx <-> Browser -->
+                <div id="net-line" class="absolute top-1/2 -translate-y-1/2 h-0 border-t-2 border-dashed border-slate-600 opacity-0 transition-opacity duration-700" style="left: 71%; width: 11%;"></div>
+
+                <!-- Data Packets -->
+                <!-- Request Packet -->
+                <div id="req-packet" class="packet absolute top-1/2 -translate-y-1/2 opacity-0 z-30" style="left: 88%; transform: translate(-50%, -50%);">
+                    <div class="bg-blue-500 text-white font-mono text-[10px] px-2 py-1 rounded shadow-lg shadow-blue-500/50 whitespace-nowrap">
+                        GET / (request)
+                    </div>
+                </div>
+
+                <!-- Response Packet -->
+                <div id="res-packet" class="packet absolute top-1/2 -translate-y-1/2 opacity-0 z-30 flex gap-1.5" style="left: 65%; transform: translate(-50%, -50%);">
+                    <div class="w-4 h-5 bg-emerald-400 rounded-sm shadow-[0_0_10px_rgba(52,211,153,0.6)]"></div>
+                    <div class="w-4 h-5 bg-emerald-400 rounded-sm shadow-[0_0_10px_rgba(52,211,153,0.6)]"></div>
+                </div>
+
+                <!-- Act 4: The Browser (88% position) -->
+                <div class="absolute top-1/2 left-[88%] -translate-x-1/2 -translate-y-1/2 z-20">
+                    <div id="node-browser" class="anim-node opacity-0 translate-x-12 flex flex-col items-center">
+                        <div class="w-56 h-36 bg-slate-800 border border-slate-600 rounded-xl overflow-hidden shadow-2xl flex flex-col relative transition-all">
+                            
+                            <!-- Browser Header / Chrome -->
+                            <div class="h-6 bg-slate-700 flex items-center px-2.5 gap-1.5 border-b border-slate-600 relative shrink-0">
+                                <div class="w-2.5 h-2.5 rounded-full bg-red-400/80"></div>
+                                <div class="w-2.5 h-2.5 rounded-full bg-yellow-400/80"></div>
+                                <div class="w-2.5 h-2.5 rounded-full bg-emerald-400/80"></div>
+                                
+                                <!-- URL Bar -->
+                                <div id="browser-url" class="absolute left-1/2 -translate-x-1/2 w-32 h-4 bg-slate-900 rounded text-[9px] flex items-center justify-center text-emerald-400 opacity-0 transition-opacity duration-1000 font-mono shadow-inner">
+                                    https://myapp.com
+                                </div>
+                            </div>
+
+                            <!-- Browser Body / Webpage -->
+                            <div class="flex-1 bg-slate-100 relative">
+                                <div id="browser-body" class="absolute inset-0 p-3 opacity-0 transition-opacity duration-1000 flex flex-col gap-2">
+                                    <!-- Mock web UI -->
+                                    <div class="w-1/2 h-3 bg-slate-300 rounded-sm"></div>
+                                    <div class="w-full flex-1 bg-blue-100 border border-blue-200 rounded-md flex items-center justify-center">
+                                        <span class="text-xs font-bold text-blue-600">MyApp Loaded!</span>
+                                    </div>
+                                    <div class="w-3/4 h-2 bg-slate-200 rounded-sm"></div>
+                                </div>
+                                <!-- Initial blank state -->
+                                <div id="browser-blank" class="absolute inset-0 bg-slate-900 transition-opacity duration-1000"></div>
+                            </div>
+                        </div>
+                        <span class="mt-4 font-mono text-sm text-slate-300">User's Device</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Utility to pause execution
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+        // Utility to safely reset element states without triggering backward animations
+        function hardResetElement(el, classListToAdd, classListToRemove, styleUpdates = {}) {
+            if (!el) return;
+            el.style.transition = 'none'; // Disable transition for instant snap
+            
+            if(classListToAdd) el.classList.add(...classListToAdd);
+            if(classListToRemove) el.classList.remove(...classListToRemove);
+            
+            for (const [key, value] of Object.entries(styleUpdates)) {
+                el.style[key] = value;
+            }
+            
+            // Force browser reflow to apply 'none' transition immediately
+            void el.offsetWidth; 
+            el.style.transition = ''; // Restore CSS transitions
+        }
+
+        // Complete reset of the scene to the starting configuration
+        function resetScene() {
+            const nodes = document.querySelectorAll('.anim-node');
+            nodes.forEach(el => {
+                hardResetElement(el, ['opacity-0', 'translate-y-8'], ['opacity-100', 'translate-y-0', 'translate-x-0', 'scale-100']);
+            });
+
+            // Special reset for Browser (uses translate-x initially)
+            hardResetElement(document.getElementById('node-browser'), ['opacity-0', 'translate-x-12'], ['opacity-100', 'translate-x-0', 'translate-y-8']);
+            
+            // Special reset for Gear
+            hardResetElement(document.getElementById('node-gear'), ['opacity-0', 'scale-50'], ['opacity-100', 'scale-100', 'translate-y-8']);
+            document.getElementById('gear-svg').classList.remove('animate-spin-fast');
+
+            // Reset Dist Wrapper position and internal scale
+            hardResetElement(document.getElementById('wrapper-dist'), null, null, { left: '45%' });
+            hardResetElement(document.getElementById('node-dist'), ['opacity-0'], ['opacity-100'], { transform: 'scale(1)' });
+
+            // Reset Nginx visuals
+            const led = document.getElementById('nginx-led');
+            led.classList.remove('bg-emerald-500', 'shadow-[0_0_8px_#10b981]');
+            led.classList.add('bg-slate-600');
+            
+            const box = document.getElementById('nginx-box');
+            box.classList.remove('animate-glow-pulse');
+            
+            document.getElementById('nginx-port').classList.add('opacity-0');
+
+            // Reset Browser webpage visuals
+            document.getElementById('browser-url').classList.add('opacity-0');
+            document.getElementById('browser-body').classList.add('opacity-0');
+            document.getElementById('browser-blank').classList.remove('opacity-0');
+
+            // Reset Lines and Arrows
+            document.getElementById('arrow-1').classList.add('opacity-0');
+            document.getElementById('net-line').classList.add('opacity-0');
+
+            // Reset Packets
+            hardResetElement(document.getElementById('req-packet'), ['opacity-0'], null, { left: '88%' });
+            hardResetElement(document.getElementById('res-packet'), ['opacity-0'], null, { left: '65%' });
+
+            // Reset Title
+            document.getElementById('act-title').style.opacity = '0';
+        }
+
+        // Helper to update the subtitle
+        async function setActTitle(title) {
+            const el = document.getElementById('act-title');
+            el.style.opacity = '0';
+            await sleep(400);
+            el.innerText = title;
+            el.style.opacity = '1';
+        }
+
+        // Helper to reveal standard nodes
+        function showNode(id) {
+            const el = document.getElementById(id);
+            el.classList.remove('opacity-0', 'translate-y-8', 'translate-x-12', 'scale-50');
+            el.classList.add('opacity-100', 'translate-y-0', 'translate-x-0', 'scale-100');
+        }
+
+        // Main orchestration function
+        async function playAnimation() {
+            const btn = document.getElementById('play-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="animate-pulse flex items-center gap-2"><svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Running...</span>';
+            
+            // Initial reset and pause
+            resetScene();
+            await sleep(600);
+
+            // ==========================================
+            // ACT 1: The Code
+            // ==========================================
+            setActTitle('Act 1: The Code');
+            showNode('node-code');
+            await sleep(2500);
+
+            // ==========================================
+            // ACT 2: The Build
+            // ==========================================
+            setActTitle('Act 2: The Build');
+            document.getElementById('arrow-1').classList.remove('opacity-0');
+            await sleep(400);
+            
+            showNode('node-gear');
+            document.getElementById('gear-svg').classList.add('animate-spin-fast');
+            await sleep(2500);
+
+            // Stop gear, produce dist folder
+            document.getElementById('gear-svg').classList.remove('animate-spin-fast');
+            showNode('node-dist');
+            await sleep(2500);
+
+            // ==========================================
+            // ACT 3: Nginx Receives
+            // ==========================================
+            setActTitle('Act 3: Nginx Receives');
+            showNode('node-nginx');
+            await sleep(1500);
+
+            // Slide Dist folder into Nginx Server
+            document.getElementById('wrapper-dist').style.left = '65%';
+            const distNode = document.getElementById('node-dist');
+            distNode.style.transform = 'scale(0.3)';
+            distNode.style.opacity = '0';
+            
+            await sleep(1000); // Wait for transit to finish
+            
+            // Turn on Nginx server
+            const led = document.getElementById('nginx-led');
+            led.classList.replace('bg-slate-600', 'bg-emerald-500');
+            led.classList.add('shadow-[0_0_10px_#10b981]');
+            document.getElementById('nginx-port').classList.remove('opacity-0');
+            await sleep(2000);
+
+            // ==========================================
+            // ACT 4: The User Arrives
+            // ==========================================
+            setActTitle('Act 4: The User Arrives');
+            showNode('node-browser');
+            await sleep(1500);
+
+            // Send Request Packet
+            document.getElementById('net-line').classList.remove('opacity-0');
+            const reqPacket = document.getElementById('req-packet');
+            reqPacket.classList.remove('opacity-0');
+            
+            await sleep(100);
+            reqPacket.style.left = '65%'; // Move to Nginx
+            await sleep(1000); // Transit duration
+            reqPacket.classList.add('opacity-0'); // Consume packet
+
+            // Nginx lights up upon receiving request
+            document.getElementById('nginx-box').classList.add('animate-glow-pulse');
+            await sleep(1500);
+
+            // ==========================================
+            // ACT 5: Files Delivered
+            // ==========================================
+            setActTitle('Act 5: Files Delivered');
+            const resPacket = document.getElementById('res-packet');
+            resPacket.classList.remove('opacity-0');
+            
+            await sleep(100);
+            resPacket.style.left = '88%'; // Move back to browser
+            await sleep(1000); // Transit duration
+            resPacket.classList.add('opacity-0'); // Consume packet
+
+            // Render webpage in browser
+            document.getElementById('browser-blank').classList.add('opacity-0');
+            document.getElementById('browser-url').classList.remove('opacity-0');
+            document.getElementById('browser-body').classList.remove('opacity-0');
+            await sleep(2000);
+
+            // ==========================================
+            // FINAL FRAME
+            // ==========================================
+            setActTitle('Always on. Always waiting.');
+            
+            // Re-enable play button
+            btn.disabled = false;
+            btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Replay Animation';
+        }
+    </script>
+</body>
+</html>
